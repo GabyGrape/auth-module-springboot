@@ -1,4 +1,4 @@
-package com.oksys.auth.util;
+package com.oksys.auth.utils;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -14,7 +14,7 @@ import java.util.Date;
 
 @Component
 public class JwtUtils {
-    @Value("${app.jwt.secret:AMBILDARIENVDOTENV}")
+    @Value("${app.jwt.secret:MySuperSecretKeyForJwtTokenMustBeAtLeast32BytesLong!}")
     private String jwtSecret;
 
     @Value("${app.jwt.expiration-ms:864000000}")

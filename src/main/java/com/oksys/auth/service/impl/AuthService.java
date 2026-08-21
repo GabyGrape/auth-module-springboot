@@ -6,10 +6,11 @@ import com.oksys.auth.dto.RegisterRequest;
 import com.oksys.auth.model.Role;
 import com.oksys.auth.model.User;
 import com.oksys.auth.repository.UserRepository;
-import com.oksys.auth.util.JwtUtils;
+import com.oksys.auth.utils.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -44,19 +45,29 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        // Melakukan verifikasi username & password secara internal via AuthenticationManager
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
-        );
+        // 1. Verifikasi Username & Password lewat AuthenticationManager
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+            );
+        } catch (AuthenticationException e) {
+            System.err.println("❌ GAGAL AUTENTIKASI (Username/Password Salah): " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Username atau password salah!");
+        }
 
+        // 2. Cari user di database
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan dengan username: " + request.getUsername()));
 
-        // Generate token JWT
-        String token = jwtUtils.generateToken(user);
-
-        return new AuthResponse(token, user.getUsername());
+        // 3. Generate token JWT
+        try {
+            String token = jwtUtils.generateToken(user);
+            return new AuthResponse(token, user.getUsername());
+        } catch (Exception e) {
+            System.err.println("🔥 MASALAH JWT: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Gagal me-generate JWT token: " + e.getMessage());
+        }
     }
-
-
 }
