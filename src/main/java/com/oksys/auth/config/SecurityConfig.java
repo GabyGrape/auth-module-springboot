@@ -37,7 +37,9 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/swagger-resources/**",
-                                "/webjars/**"
+                                "/webjars/**",
+                                "/login",
+                                "/register"
                         ).permitAll()
 
                         // 2. Izinkan akses publik ke endpoint Auth (misal: login & register)

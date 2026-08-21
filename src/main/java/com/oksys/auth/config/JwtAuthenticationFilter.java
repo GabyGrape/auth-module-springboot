@@ -1,7 +1,7 @@
 package com.oksys.auth.config;
 
 
-import com.oksys.auth.util.JwtUtils;
+import com.oksys.auth.utils.JwtUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
