@@ -1,6 +1,5 @@
 package com.oksys.auth.controller;
 
-import com.oksys.auth.dto.AuthResponse;
 import com.oksys.auth.dto.LoginRequest;
 import com.oksys.auth.dto.RegisterRequest;
 import com.oksys.auth.service.impl.AuthService;
@@ -11,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
 
     private final AuthService authService;
@@ -20,8 +20,19 @@ public class AuthController {
         return ResponseEntity.ok(authService.register(request));
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+//    @PostMapping("/login")
+//    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
+//        return ResponseEntity.ok(authService.login(request));
+//    }
+@PostMapping("/login")
+public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+    try {
+        // Logika autentikasi Anda
+        return ResponseEntity.ok(authService.login(loginRequest));
+    } catch (Exception e) {
+        // CETAK ERROR ASLI DI CONSOLE TERMINAL JAVA
+        e.printStackTrace();
+        return ResponseEntity.status(500).body("Error: " + e.getMessage());
     }
+}
 }
