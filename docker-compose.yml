@@ -1,0 +1,14 @@
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${NEON_HOST}/auth_db?sslmode=require
+      - SPRING_DATASOURCE_USERNAME=${NEON_USER}
+      - SPRING_DATASOURCE_PASSWORD=${NEON_PASSWORD}
+      - APP_JWT_SECRET=${JWT_SECRET}
+    restart: always
