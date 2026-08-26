@@ -65,7 +65,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // Izinkan domain frontend Vue.js Anda
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173", "https://ticketing-management-web.vercel.app"));
         // Izinkan semua method HTTP
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         // Izinkan semua header (Content-Type, Authorization, dll)
