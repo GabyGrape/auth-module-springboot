@@ -18,6 +18,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 import java.util.List;
 
@@ -29,16 +30,13 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthFilter;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                .cors(Customizer.withDefaults()) // 👈 Gunakan konfigurasi CORS default yang mengacu ke Bean CorsConfigurationSource di bawah
+                .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        // 1. Izinkan request pre-flight OPTIONS dari browser
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // 2. Izinkan dokumentasi Swagger, Login, dan Error
                         .requestMatchers(
                                 "/",
                                 "/error",
@@ -50,25 +48,29 @@ public class SecurityConfig {
                                 "/login",
                                 "/register"
                         ).permitAll()
-                        // 3. Izinkan endpoint Auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        // 4. Sisanya wajib pakai Token
                         .anyRequest().authenticated()
                 )
+                // 1. Jalankan CorsFilter DULUAN agar request OPTIONS ditangani CORS sebelum JWT
+                .addFilterBefore(new CorsFilter(corsConfigurationSource()), UsernamePasswordAuthenticationFilter.class)
+                // 2. Baru jalankan JwtAuthFilter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // 👈 DEFINISI ATURAN CORS TERPUSAT
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Izinkan domain frontend Vue.js Anda
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173", "https://ticketing-management-web.vercel.app","https://*.vercel.app"));
-        // Izinkan semua method HTTP
+
+        // 👈 PERBAIKAN: Gunakan setAllowedOriginPatterns (Bahan Wildcard)
+        configuration.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "https://*.vercel.app"
+        ));
+
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        // Izinkan semua header (Content-Type, Authorization, dll)
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
