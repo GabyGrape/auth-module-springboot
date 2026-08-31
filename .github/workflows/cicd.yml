@@ -1,0 +1,61 @@
+name: Auth Service CI/CD
+
+on:
+  # Berjalan saat Pull Request ke main
+  pull_request:
+    branches: [ "main" ]
+  # Berjalan saat ada Push langsung atau Merge ke main
+  push:
+    branches: [ "main" ]
+
+jobs:
+  # -------------------------------------------------------------
+  # JOB 1: Continuous Integration (Build & Testing)
+  # -------------------------------------------------------------
+  ci-build-and-test:
+    name: Build & Test Application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven # Caching dependency Maven agar build berikutnya lebih cepat
+
+      - name: Grant Execute Permission for Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Run Unit & Integration Tests
+        run: ./mvnw clean test
+        env:
+          SPRING_PROFILES_ACTIVE: test
+
+      - name: Package Application (JAR)
+        run: ./mvnw package -DskipTests
+
+  # -------------------------------------------------------------
+  # JOB 2: Continuous Deployment (Trigger Render)
+  # -------------------------------------------------------------
+  cd-deploy:
+    name: Deploy to Render
+    needs: ci-build-and-test # Hanya jalan jika job Testing sukses
+    # Hanya trigger deploy jika event berasal dari PUSH ke branch MAIN (bukan sekadar Pull Request)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deployment Webhook
+        run: |
+          echo "Triggering deployment on Render..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_AUTH }}")
+          if [ $response -eq 200 ] || [ $response -eq 201 ]; then
+            echo "Successfully triggered Render deployment!"
+          else
+            echo "Failed to trigger deployment. HTTP Status Code: $response"
+            exit 1
+          fi
