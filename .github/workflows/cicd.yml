@@ -18,10 +18,10 @@ jobs:
 
     steps:
       - name: Checkout Repository Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -53,8 +53,10 @@ jobs:
         run: |
           echo "Triggering deployment on Render..."
           response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_AUTH }}")
-          if [ $response -eq 200 ] || [ $response -eq 201 ]; then
-            echo "Successfully triggered Render deployment!"
+          
+          # Tambahkan pengecekan HTTP 202
+          if [ "$response" -eq 200 ] || [ "$response" -eq 201 ] || [ "$response" -eq 202 ]; then
+            echo "Successfully triggered Render deployment! (HTTP Status: $response)"
           else
             echo "Failed to trigger deployment. HTTP Status Code: $response"
             exit 1
