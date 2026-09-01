@@ -5,14 +5,15 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-//import org.springframework.data.annotation.Id;
-import jakarta.persistence.Id;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+
+//import org.springframework.data.annotation.Id;
 
 @Data
 @Builder
@@ -35,7 +36,29 @@ public class User implements UserDetails {
     private String password;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Role role;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean enabled = false; // Default false sebelum verifikasi email
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -56,9 +79,10 @@ public class User implements UserDetails {
     public boolean isCredentialsNonExpired() {
         return true;
     }
+    // Dihubungkan langsung dengan atribut enabled di DB
     @Override
     public boolean isEnabled() {
-        return true;
+        return this.isEnabled();
     }
 
 
