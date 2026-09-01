@@ -3,71 +3,119 @@ package com.oksys.auth.service.impl;
 import com.oksys.auth.dto.AuthResponse;
 import com.oksys.auth.dto.LoginRequest;
 import com.oksys.auth.dto.RegisterRequest;
-import com.oksys.auth.model.Role;
-import com.oksys.auth.model.User;
+import com.oksys.auth.dto.VerifyOtpRequest;
+import com.oksys.auth.model.Role; // Sesuaikan import Role dengan lokasi paketmu
+import com.oksys.auth.model.User; // Sesuaikan import User dengan lokasi paketmu
+import com.oksys.auth.model.VerificationCode;
 import com.oksys.auth.repository.UserRepository;
-import com.oksys.auth.utils.JwtUtils;
+import com.oksys.auth.repository.VerificationCodeRepository;
+import com.oksys.auth.utils.JwtUtils; // Sesuaikan import JwtUtils dengan lokasi paketmu
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final VerificationCodeRepository verificationCodeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final AuthenticationManager authenticationManager;
+    private final EmailService emailService;
 
-    public String register(RegisterRequest request) {
+    @Transactional
+    public void register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Error: Username sudah digunakan!");
+            throw new IllegalArgumentException("Username sudah digunakan");
         }
-
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Error: Email sudah digunakan!");
+            throw new IllegalArgumentException("Email sudah terdaftar");
         }
 
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword())) // Enkripsi password menggunakan BCrypt
-                .role(Role.ROLE_USER) // Default role
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role(Role.ROLE_USER)
+                .enabled(false) // User belum aktif sampai verifikasi OTP selesai
                 .build();
 
         userRepository.save(user);
 
-        return "User berhasil terdaftar!";
+        // Generate 6-digit OTP
+        String otpCode = generateOtpCode();
+
+        VerificationCode verificationCode = VerificationCode.builder()
+                .user(user)
+                .code(otpCode)
+                .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .build();
+
+        verificationCodeRepository.save(verificationCode);
+
+        // Kirim Email secara Async via SMTP
+        emailService.sendVerificationEmail(user.getEmail(), otpCode);
     }
 
+    @Transactional
+    public void verifyAccount(VerifyOtpRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Email tidak ditemukan"));
+
+        if (user.isEnabled()) {
+            throw new IllegalStateException("Akun sudah aktif");
+        }
+
+        VerificationCode verificationCode = verificationCodeRepository.findByUserAndCode(user, request.getCode())
+                .orElseThrow(() -> new IllegalArgumentException("Kode OTP tidak valid"));
+
+        if (verificationCode.isExpired()) {
+            throw new IllegalStateException("Kode OTP telah kedaluwarsa");
+        }
+
+        // Aktifkan akun user
+        user.setEnabled(true);
+        userRepository.save(user);
+
+        // Hapus kode verifikasi yang telah terpakai
+        verificationCodeRepository.deleteByUser(user);
+    }
+
+    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        // 1. Verifikasi Username & Password lewat AuthenticationManager
+        // 1. Verifikasi Username & Password via AuthenticationManager
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
             );
+        } catch (DisabledException e) {
+            throw new IllegalStateException("Akun belum diverifikasi. Silakan cek email Anda untuk kode OTP.");
         } catch (AuthenticationException e) {
-            System.err.println("❌ GAGAL AUTENTIKASI (Username/Password Salah): " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Username atau password salah!");
+            throw new IllegalArgumentException("Username atau password salah!");
         }
 
         // 2. Cari user di database
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan dengan username: " + request.getUsername()));
+                .orElseThrow(() -> new IllegalArgumentException("User tidak ditemukan: " + request.getUsername()));
 
         // 3. Generate token JWT
-        try {
-            String token = jwtUtils.generateToken(user);
-            return new AuthResponse(token, user.getUsername());
-        } catch (Exception e) {
-            System.err.println("🔥 MASALAH JWT: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Gagal me-generate JWT token: " + e.getMessage());
-        }
+        String token = jwtUtils.generateToken(user);
+        return new AuthResponse(token, user.getUsername());
+    }
+
+    private String generateOtpCode() {
+        SecureRandom random = new SecureRandom();
+        int code = 100000 + random.nextInt(900000);
+        return String.valueOf(code);
     }
 }
