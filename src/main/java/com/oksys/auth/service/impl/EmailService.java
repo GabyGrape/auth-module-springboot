@@ -1,31 +1,32 @@
 package com.oksys.auth.service.impl;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
+import com.resend.Resend;
+import com.resend.core.exception.ResendException;
+import com.resend.services.emails.model.CreateEmailOptions;
+import com.resend.services.emails.model.CreateEmailResponse;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    @Value("${resend.api.key}")
+    private String apiKey;
+
+    private Resend resend;
+
+    @PostConstruct
+    public void init() {
+        this.resend = new Resend(apiKey);
+    }
 
     @Async
     public void sendVerificationEmail(String toEmail, String code) {
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setTo(toEmail);
-            helper.setSubject("Kode Verifikasi Registrasi Ticket Service");
-
-            // Standardisasi tampilan email menggunakan HTML
             String htmlContent = """
                 <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
                     <h2>Selamat Datang di Ticket Service!</h2>
@@ -39,15 +40,20 @@ public class EmailService {
                 </div>
                 """.formatted(code);
 
-            helper.setText(htmlContent, true); // parameter true = kirim sebagai HTML
+            CreateEmailOptions params = CreateEmailOptions.builder()
+                    .from("noreply@smtpmail.oktagabriel.my.id")
+                    .to(toEmail)
+                    .subject("Kode Verifikasi Registrasi Ticket Service")
+                    .html(htmlContent)
+                    .build();
 
-            mailSender.send(message);
-            log.info("Email verifikasi berhasil dikirim ke: {}", toEmail);
+            CreateEmailResponse response = resend.emails().send(params);
+            log.info("Email verifikasi berhasil dikirim ke: {} (ID: {})", toEmail, response.getId());
 
-        } catch (MessagingException e) {
-            log.error("Gagal mengirim email verifikasi ke {}: {}", toEmail, e.getMessage(), e);
+        } catch (ResendException e) {
+            log.error("Gagal mengirim email verifikasi ke {} via Resend API: {}", toEmail, e.getMessage());
         } catch (Exception e) {
-            log.error("Terjadi kesalahan tidak terduga saat mengirim email: {}", e.getMessage(), e);
+            log.error("Terjadi kesalahan tidak terduga saat mengirim email: {}", e.getMessage());
         }
     }
 }
