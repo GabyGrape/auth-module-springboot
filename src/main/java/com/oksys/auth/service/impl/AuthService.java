@@ -4,12 +4,12 @@ import com.oksys.auth.dto.AuthResponse;
 import com.oksys.auth.dto.LoginRequest;
 import com.oksys.auth.dto.RegisterRequest;
 import com.oksys.auth.dto.VerifyOtpRequest;
-import com.oksys.auth.model.Role; // Sesuaikan import Role dengan lokasi paketmu
-import com.oksys.auth.model.User; // Sesuaikan import User dengan lokasi paketmu
+import com.oksys.auth.model.Role;
+import com.oksys.auth.model.User;
 import com.oksys.auth.model.VerificationCode;
 import com.oksys.auth.repository.UserRepository;
 import com.oksys.auth.repository.VerificationCodeRepository;
-import com.oksys.auth.utils.JwtUtils; // Sesuaikan import JwtUtils dengan lokasi paketmu
+import com.oksys.auth.utils.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.DisabledException;
@@ -18,6 +18,8 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -50,21 +52,32 @@ public class AuthService {
                 .enabled(false) // User belum aktif sampai verifikasi OTP selesai
                 .build();
 
-        userRepository.save(user);
+        // 1. Simpan user ke database
+        User savedUser = userRepository.save(user);
 
         // Generate 6-digit OTP
         String otpCode = generateOtpCode();
 
         VerificationCode verificationCode = VerificationCode.builder()
-                .user(user)
+                .user(savedUser)
                 .code(otpCode)
                 .expiresAt(LocalDateTime.now().plusMinutes(10))
                 .build();
 
+        // 2. Simpan kode verifikasi
         verificationCodeRepository.save(verificationCode);
 
-        // Kirim Email secara Async via SMTP
-        emailService.sendVerificationEmail(user.getEmail(), otpCode);
+        // 3. Trigger pengiriman email HANYA SETELAH transaksi DB berhasil di-COMMIT 100%
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    emailService.sendVerificationEmail(savedUser.getEmail(), otpCode);
+                }
+            });
+        } else {
+            emailService.sendVerificationEmail(savedUser.getEmail(), otpCode);
+        }
     }
 
     @Transactional

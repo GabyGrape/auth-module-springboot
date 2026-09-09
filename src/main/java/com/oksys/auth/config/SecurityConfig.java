@@ -30,30 +30,29 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Disable CSRF untuk REST API
                 .csrf(AbstractHttpConfigurer::disable)
-
-                // Integrasikan CorsConfigurationSource secara resmi ke Spring Security
+                // Izinkan rendering frame (diperlukan untuk UI seperti H2/Swagger)
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/",
                                 "/error",
+                                "/favicon.ico", // Ditambahkan agar browser tidak throw 403 saat minta icon
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/swagger-resources/**",
                                 "/webjars/**",
                                 "/login",
-                                "/register"
+                                "/register",
+                                "/h2-console/**",
+                                "/api/auth/**" // Perbaikan typo (tambah / di depan)
                         ).permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                // Cukup tambahkan JwtAuthenticationFilter saja
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
