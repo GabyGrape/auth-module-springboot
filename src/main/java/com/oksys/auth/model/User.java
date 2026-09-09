@@ -82,7 +82,7 @@ public class User implements UserDetails {
     // Dihubungkan langsung dengan atribut enabled di DB
     @Override
     public boolean isEnabled() {
-        return this.isEnabled();
+        return this.enabled;
     }
 
 
